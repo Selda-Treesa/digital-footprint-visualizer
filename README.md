@@ -14,6 +14,11 @@ A web app that shows how traceable a username is across multiple platforms using
 
 This tool only uses publicly available data. Do not misuse it.
 
+
+**💡 Purpose**
+
+This project is built to raise awareness about digital privacy and how easily identities can be linked online.
+
 ## ▶️ Run locally
 
 pip install flask flask-cors requests
