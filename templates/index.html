@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Digital Footprint Visualizer</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f0f13;
+      color: #e4e4e7;
+      min-height: 100vh;
+      padding: 2.5rem 1rem 4rem;
+    }
+
+    .container { max-width: 740px; margin: 0 auto; }
+
+    /* ── Header ── */
+    header { text-align: center; margin-bottom: 2.5rem; }
+    .header-pill {
+      display: inline-flex; align-items: center; gap: 7px;
+      background: #1a1a24; border: 1px solid #2e2e40;
+      border-radius: 999px; padding: 5px 14px;
+      font-size: 0.75rem; color: #a1a1aa; margin-bottom: 1.2rem;
+    }
+    .header-pill .dot {
+      width: 7px; height: 7px; background: #22c55e;
+      border-radius: 50%; animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    header h1 {
+      font-size: 2.6rem; font-weight: 800;
+      letter-spacing: -1.5px; line-height: 1.1; color: #f4f4f5;
+    }
+    header h1 span { color: #818cf8; }
+    header p { margin-top: .75rem; color: #71717a; font-size: 1rem; }
+
+    /* ── Search card ── */
+    .search-card {
+      background: #16161f; border: 1px solid #2e2e40;
+      border-radius: 20px; padding: 1.5rem; margin-bottom: 1rem;
+    }
+    .search-row { display: flex; gap: 10px; align-items: center; }
+    .search-icon {
+      width: 40px; height: 40px; background: #1e1e2e;
+      border: 1px solid #2e2e40; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; flex-shrink: 0;
+    }
+    .search-row input {
+      flex: 1; background: #1e1e2e; border: 1px solid #2e2e40;
+      border-radius: 10px; padding: .65rem 1rem;
+      font-size: 1rem; color: #f4f4f5; outline: none;
+      transition: border-color .2s;
+    }
+    .search-row input::placeholder { color: #52525b; }
+    .search-row input:focus { border-color: #6366f1; }
+    .search-row button {
+      background: #6366f1; color: #fff; border: none;
+      border-radius: 10px; padding: .65rem 1.4rem;
+      font-size: .95rem; font-weight: 600; cursor: pointer;
+      transition: background .2s, transform .1s; white-space: nowrap;
+    }
+    .search-row button:hover  { background: #4f46e5; }
+    .search-row button:active { transform: scale(.97); }
+    .search-row button:disabled { background: #3730a3; color: #818cf8; cursor: not-allowed; }
+
+    .platform-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 1rem; }
+    .platform-pills span {
+      font-size: .72rem; color: #71717a; background: #1e1e2e;
+      border: 1px solid #2e2e40; border-radius: 999px; padding: 3px 11px;
+    }
+
+    #status-msg {
+      margin-top: .75rem; font-size: .875rem;
+      color: #71717a; min-height: 1.2em; text-align: center;
+    }
+    #status-msg.error { color: #f87171; }
+    .dots::after { content:''; animation: dots 1.4s infinite; }
+    @keyframes dots { 0%{content:'.'} 33%{content:'..'} 66%{content:'...'} }
+
+    /* ── Results ── */
+    #results { display: none; }
+
+    .summary-row {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 12px; margin-bottom: 12px;
+    }
+    .summary-card {
+      background: #16161f; border: 1px solid #2e2e40;
+      border-radius: 16px; padding: 1.25rem;
+    }
+    .card-label {
+      font-size: .72rem; text-transform: uppercase;
+      letter-spacing: .1em; color: #52525b; margin-bottom: .5rem;
+    }
+
+    .score-card.LOW    { border-color: #166534; }
+    .score-card.MEDIUM { border-color: #92400e; }
+    .score-card.HIGH   { border-color: #991b1b; }
+
+    .score-value { font-size: 2.8rem; font-weight: 800; letter-spacing: 2px; line-height: 1; }
+    .LOW    .score-value { color: #4ade80; }
+    .MEDIUM .score-value { color: #fbbf24; }
+    .HIGH   .score-value { color: #f87171; }
+
+    .score-number-sub { font-size: .82rem; color: #52525b; margin: 4px 0 12px; }
+    .score-bar-track { background: #1e1e2e; border-radius: 999px; height: 6px; overflow: hidden; }
+    .score-bar-fill {
+      height: 100%; border-radius: 999px; width: 0%;
+      transition: width .9s cubic-bezier(.4,0,.2,1);
+    }
+    .LOW    .score-bar-fill { background: #4ade80; }
+    .MEDIUM .score-bar-fill { background: #fbbf24; }
+    .HIGH   .score-bar-fill { background: #f87171; }
+
+    .found-big { font-size: 2.4rem; font-weight: 800; color: #f4f4f5; line-height: 1; }
+    .found-big span { font-size: 1rem; font-weight: 400; color: #52525b; }
+    .found-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+    .found-tag {
+      font-size: .7rem; font-weight: 600; background: #1e1e2e;
+      border: 1px solid #312e81; color: #818cf8;
+      padding: 2px 9px; border-radius: 999px;
+    }
+
+    .reasons-card {
+      background: #16161f; border: 1px solid #2e2e40;
+      border-radius: 16px; padding: 1.25rem; margin-bottom: 12px;
+    }
+    .reasons-list { list-style: none; display: flex; flex-direction: column; gap: 7px; }
+    .reasons-list li { display: flex; align-items: flex-start; gap: 8px; font-size: .875rem; color: #a1a1aa; }
+    .reasons-list li .tick { color: #818cf8; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+
+    .section-label {
+      font-size: .72rem; text-transform: uppercase;
+      letter-spacing: .1em; color: #52525b; margin-bottom: 10px;
+    }
+
+    .platform-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(210px,1fr));
+      gap: 10px; margin-bottom: 12px;
+    }
+    .platform-card {
+      background: #16161f; border: 1px solid #2e2e40;
+      border-radius: 14px; padding: 1rem 1.1rem;
+      transition: border-color .2s, transform .15s;
+      position: relative; overflow: hidden;
+    }
+    .platform-card::before {
+      content:''; position: absolute; top:0; left:0; right:0;
+      height: 2px; background: transparent; transition: background .2s;
+    }
+    .platform-card.found::before { background: #6366f1; }
+    .platform-card.found { border-color: #312e81; }
+    .platform-card:hover { transform: translateY(-2px); border-color: #3f3f5a; }
+
+    .platform-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .platform-icon-name { display: flex; align-items: center; gap: 8px; }
+    .p-icon {
+      width: 30px; height: 30px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; background: #1e1e2e; border: 1px solid #2e2e40; flex-shrink: 0;
+    }
+    .platform-name { font-weight: 600; font-size: .9rem; color: #e4e4e7; }
+
+    .badge { font-size: .7rem; font-weight: 600; padding: 2px 9px; border-radius: 999px; flex-shrink: 0; }
+    .badge.found     { background: #1e1b4b; color: #818cf8; border: 1px solid #312e81; }
+    .badge.not-found { background: #18181b; color: #52525b; border: 1px solid #27272a; }
+    .badge.manual    { background: #1c1917; color: #a8a29e; border: 1px solid #44403c; }
+
+    .platform-detail { font-size: .8rem; color: #52525b; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .platform-detail .val { color: #a1a1aa; }
+    .platform-link {
+      display: inline-flex; align-items: center; gap: 4px;
+      margin-top: 8px; font-size: .78rem; color: #818cf8;
+      text-decoration: none; font-weight: 500;
+    }
+    .platform-link:hover { color: #a5b4fc; text-decoration: underline; }
+    .no-profile { font-size: .8rem; color: #3f3f46; margin-top: 4px; }
+
+    /* ── Charts ── */
+    .charts-section { margin-bottom: 2rem; }
+    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .chart-card {
+      background: #16161f; border: 1px solid #2e2e40;
+      border-radius: 16px; padding: 1.25rem;
+    }
+    .chart-card .card-label {
+      font-size: .72rem; text-transform: uppercase;
+      letter-spacing: .1em; color: #52525b; margin-bottom: 1rem;
+    }
+    .chart-card canvas { width: 100% !important; }
+
+    /* ── Interests ── */
+    .interests-card {
+      background: #16161f; border: 1px solid #2e2e40;
+      border-radius: 16px; padding: 1.25rem; margin-bottom: 12px;
+    }
+    .interests-header {
+      display: flex; align-items: center;
+      justify-content: space-between; margin-bottom: 1rem;
+    }
+    .interests-note { font-size: 0.75rem; color: #3f3f46; font-style: italic; }
+    .interest-group { margin-bottom: 0.85rem; }
+    .interest-group:last-child { margin-bottom: 0; }
+    .interest-group-label {
+      font-size: 0.7rem; text-transform: uppercase;
+      letter-spacing: 0.1em; margin-bottom: 6px; font-weight: 600;
+    }
+    .ig-languages   .interest-group-label { color: #60a5fa; }
+    .ig-topics      .interest-group-label { color: #a78bfa; }
+    .ig-tools       .interest-group-label { color: #34d399; }
+    .ig-soft_skills .interest-group-label { color: #fb923c; }
+    .interest-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .interest-tag { font-size: 0.78rem; padding: 3px 11px; border-radius: 999px; font-weight: 500; }
+    .ig-languages   .interest-tag { background: #1e3a5f; color: #93c5fd; border: 1px solid #1d4ed8; }
+    .ig-topics      .interest-tag { background: #2e1065; color: #c4b5fd; border: 1px solid #6d28d9; }
+    .ig-tools       .interest-tag { background: #064e3b; color: #6ee7b7; border: 1px solid #059669; }
+    .ig-soft_skills .interest-tag { background: #431407; color: #fdba74; border: 1px solid #c2410c; }
+    .no-interests { font-size: 0.85rem; color: #3f3f46; font-style: italic; }
+    .bio-quote {
+      background: #1e1e2e; border-left: 2px solid #312e81;
+      border-radius: 0 8px 8px 0; padding: 0.6rem 0.9rem;
+      font-size: 0.8rem; color: #71717a; margin-bottom: 6px;
+      font-style: italic; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    /* ── Footer ── */
+    footer { text-align: center; margin-top: 2rem; font-size: .78rem; color: #3f3f46; }
+
+    @media (max-width: 540px) {
+      header h1 { font-size: 1.9rem; }
+      .summary-row { grid-template-columns: 1fr; }
+      .charts-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="header-pill">
+      <span class="dot"></span>
+      10 platforms monitored
+    </div>
+    <h1>Digital Footprint<br><span>Visualizer</span></h1>
+    <p>Discover your username's presence across the internet.</p>
+  </header>
+
+  <div class="search-card">
+    <div class="search-row">
+      <div class="search-icon">🔍</div>
+      <input type="text" id="username-input"
+        placeholder="Enter a username…" autocomplete="off" maxlength="50"/>
+      <button id="search-btn" onclick="runSearch()">Analyze</button>
+    </div>
+    <div class="platform-pills">
+      <span>GitHub</span><span>GitLab</span><span>Reddit</span>
+      <span>npm</span><span>PyPI</span><span>Hacker News</span>
+      <span>Dev.to</span><span>Twitter/X</span>
+      <span>Instagram</span><span>LinkedIn</span>
+    </div>
+    <div id="status-msg"></div>
+  </div>
+
+  <!-- Results -->
+  <div id="results">
+
+    <!-- Score + found -->
+    <div class="summary-row">
+      <div class="summary-card score-card" id="score-card">
+        <div class="card-label">Traceability score</div>
+        <div class="score-value" id="score-label"></div>
+        <div class="score-number-sub" id="score-number"></div>
+        <div class="score-bar-track">
+          <div class="score-bar-fill" id="score-bar"></div>
+        </div>
+      </div>
+      <div class="summary-card" id="found-card">
+        <div class="card-label">Found on</div>
+        <div class="found-big" id="found-count"></div>
+        <div class="found-tags" id="found-tags"></div>
+      </div>
+    </div>
+
+    <!-- Reasons -->
+    <div class="reasons-card">
+      <div class="card-label">Why this score?</div>
+      <ul class="reasons-list" id="reasons-list"></ul>
+    </div>
+
+    <!-- Platform cards -->
+    <div class="section-label">Platform results</div>
+    <div class="platform-grid" id="platform-grid"></div>
+
+    <!-- Interests -->
+    <div class="interests-card" id="interests-card">
+      <div class="interests-header">
+        <div class="card-label" style="margin-bottom:0">Interests from bios</div>
+        <span class="interests-note">Extracted from public profile bios</span>
+      </div>
+      <div id="bio-quotes"></div>
+      <div id="interest-groups"></div>
+    </div>
+
+    <!-- Charts -->
+    <div class="charts-section">
+      <div class="section-label">Visual breakdown</div>
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="card-label">Platform presence</div>
+          <canvas id="radarChart" height="220"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="card-label">Score breakdown</div>
+          <canvas id="barChart" height="220"></canvas>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>Only public data is checked &nbsp;·&nbsp; No data is stored</footer>
+</div>
+
+<script>
+  /* ── Platform metadata — all 10 platforms ── */
+  const PLATFORM_META = {
+    github:     { label: "GitHub",      icon: "🐙" },
+    gitlab:     { label: "GitLab",      icon: "🦊" },
+    reddit:     { label: "Reddit",      icon: "🤖" },
+    npm:        { label: "npm",         icon: "📦" },
+    hackernews: { label: "Hacker News", icon: "🔶" },
+    devto:      { label: "Dev.to",      icon: "👩‍💻" },
+    pypi:       { label: "PyPI",        icon: "🐍" },
+    twitter:    { label: "Twitter / X", icon: "🐦" },
+    instagram:  { label: "Instagram",   icon: "📸" },
+    linkedin:   { label: "LinkedIn",    icon: "💼" },
+  };
+
+  /* Manual-check platforms — shown differently in UI */
+  const MANUAL_PLATFORMS = new Set(["linkedin", "twitter", "instagram"]);
+
+  /* Manual check link labels */
+  const MANUAL_LABELS = {
+    linkedin:  "Check LinkedIn manually →",
+    twitter:   "Check Twitter / X manually →",
+    instagram: "Check Instagram manually →",
+  };
+
+  let radarChartInstance = null;
+  let barChartInstance   = null;
+
+  Chart.defaults.color       = "#71717a";
+  Chart.defaults.borderColor = "#2e2e40";
+  Chart.defaults.font.family = "system-ui, sans-serif";
+  Chart.defaults.font.size   = 11;
+
+  document.getElementById("username-input")
+    .addEventListener("keydown", e => { if (e.key === "Enter") runSearch(); });
+
+  /* ════════════════════════════
+     MAIN SEARCH FUNCTION
+  ════════════════════════════ */
+  async function runSearch() {
+    const input    = document.getElementById("username-input");
+    const btn      = document.getElementById("search-btn");
+    const statusEl = document.getElementById("status-msg");
+    const results  = document.getElementById("results");
+
+    const username = input.value.trim();
+    if (!username) { showStatus("Please enter a username.", true); return; }
+
+    btn.disabled       = true;
+    btn.textContent    = "Analyzing…";
+    statusEl.className = "dots";
+    showStatus("Checking 10 platforms in parallel — hang tight");
+    results.style.display = "none";
+
+    try {
+      const res  = await fetch(`/check?username=${encodeURIComponent(username)}`);
+      const data = await res.json();
+      if (!res.ok) { showStatus(data.error || "Something went wrong.", true); return; }
+
+      renderResults(data);
+      results.style.display = "block";
+      statusEl.className = "";
+      showStatus("");
+
+    } catch {
+      showStatus("Cannot reach the server — is Flask running?", true);
+    } finally {
+      btn.disabled    = false;
+      btn.textContent = "Analyze";
+    }
+  }
+
+  function showStatus(msg, isError = false) {
+    const el = document.getElementById("status-msg");
+    el.textContent = msg;
+    el.className   = isError ? "error" : "";
+  }
+
+  /* ════════════════════════════
+     RENDER ALL RESULTS
+  ════════════════════════════ */
+  function renderResults(data) {
+    const { platforms, traceability } = data;
+
+    /* Score card */
+    const scoreCard = document.getElementById("score-card");
+    scoreCard.className = `summary-card score-card ${traceability.label}`;
+    document.getElementById("score-label").textContent  = traceability.label;
+    document.getElementById("score-number").textContent = `${traceability.score} / 100`;
+    const bar = document.getElementById("score-bar");
+    bar.style.width = "0%";
+    setTimeout(() => { bar.style.width = traceability.score + "%"; }, 60);
+
+    /* Found count card — exclude manual platforms from count */
+    const foundEntries = Object.entries(platforms).filter(
+      ([k, v]) => v.found === true && !MANUAL_PLATFORMS.has(k)
+    );
+    const totalCheckable = Object.keys(platforms).filter(k => !MANUAL_PLATFORMS.has(k)).length;
+    document.getElementById("found-count").innerHTML =
+      `${foundEntries.length} <span>/ ${totalCheckable} checked</span>`;
+
+    const tagsEl = document.getElementById("found-tags");
+    tagsEl.innerHTML = "";
+    foundEntries.forEach(([key]) => {
+      const t = document.createElement("span");
+      t.className   = "found-tag";
+      t.textContent = PLATFORM_META[key]?.label || key;
+      tagsEl.appendChild(t);
+    });
+
+    /* Reasons */
+    const list = document.getElementById("reasons-list");
+    list.innerHTML = "";
+    const reasons = traceability.reasons.length
+      ? traceability.reasons
+      : ["No platforms found — very low footprint."];
+    reasons.forEach(r => {
+      list.innerHTML += `<li><span class="tick">✓</span> ${escHtml(r)}</li>`;
+    });
+
+    /* Platform cards */
+    const grid = document.getElementById("platform-grid");
+    grid.innerHTML = "";
+
+    for (const [key, info] of Object.entries(platforms)) {
+      const meta = PLATFORM_META[key] || { label: key, icon: "🌐" };
+      const isManual = info.manual === true;
+      const card = document.createElement("div");
+      card.className = `platform-card ${info.found === true ? "found" : ""}`;
+
+      let details = "";
+
+      if (isManual) {
+        const linkLabel = MANUAL_LABELS[key] || "Check manually →";
+        details = `
+          <div class="platform-detail" style="color:#71717a; font-style:italic; margin-bottom:8px;">
+            Can't be checked automatically
+          </div>
+          <a class="platform-link"
+             href="${escHtml(info.url)}"
+             target="_blank" rel="noopener"
+             style="background:#1e3a5f; padding:5px 12px; border-radius:8px; border:1px solid #1d4ed8;">
+            ${linkLabel}
+          </a>`;
+      } else if (info.found) {
+        if (info.bio)          details += detail("📝", escHtml(info.bio));
+        if (info.followers)    details += detail("👥", `${info.followers.toLocaleString()} followers`);
+        if (info.karma)        details += detail("⬆️", `${info.karma.toLocaleString()} karma`);
+        if (info.packages)     details += detail("📦", `${info.packages} package(s)`);
+        if (info.public_repos) details += detail("📁", `${info.public_repos} public repos`);
+        if (info.url)
+          details += `<a class="platform-link" href="${escHtml(info.url)}" target="_blank" rel="noopener">View profile →</a>`;
+      } else {
+        details = `<div class="no-profile">No public profile found.</div>`;
+      }
+
+      /* Badge */
+      let badgeClass = "not-found";
+      let badgeText  = "Not found";
+      if (isManual)        { badgeClass = "manual"; badgeText = "Manual"; }
+      else if (info.found) { badgeClass = "found";  badgeText = "Found";  }
+
+      card.innerHTML = `
+        <div class="platform-header">
+          <div class="platform-icon-name">
+            <div class="p-icon">${meta.icon}</div>
+            <span class="platform-name">${meta.label}</span>
+          </div>
+          <span class="badge ${badgeClass}">${badgeText}</span>
+        </div>
+        ${details}`;
+
+      grid.appendChild(card);
+    }
+
+    /* Bio analysis */
+    renderInterests(data.bio_analysis);
+
+    /* Charts */
+    renderCharts(platforms, traceability);
+  }
+
+  /* ════════════════════════════
+     CHART RENDERING
+  ════════════════════════════ */
+  function renderCharts(platforms, traceability) {
+    if (radarChartInstance) { radarChartInstance.destroy(); radarChartInstance = null; }
+    if (barChartInstance)   { barChartInstance.destroy();   barChartInstance   = null; }
+
+    /* Only show checkable platforms in radar (exclude manual ones) */
+    const checkableEntries = Object.entries(platforms).filter(
+      ([k]) => !MANUAL_PLATFORMS.has(k)
+    );
+    const radarLabels = checkableEntries.map(([k]) => PLATFORM_META[k]?.label || k);
+    const radarData   = checkableEntries.map(([, v]) => v.found ? 1 : 0);
+    const radarPoints = checkableEntries.map(([, v]) => v.found ? "#818cf8" : "#3f3f46");
+
+    radarChartInstance = new Chart(
+      document.getElementById("radarChart"),
+      {
+        type: "radar",
+        data: {
+          labels: radarLabels,
+          datasets: [{
+            label: "Present",
+            data:  radarData,
+            backgroundColor: "rgba(99, 102, 241, 0.25)",
+            borderColor:     "#6366f1",
+            borderWidth:     2,
+            pointBackgroundColor: radarPoints,
+            pointRadius: 5,
+            pointHoverRadius: 7,
+          }]
+        },
+        options: {
+          responsive: true,
+          animation: { duration: 800 },
+          scales: {
+            r: {
+              min: 0, max: 1,
+              ticks: { stepSize: 1, display: false },
+              grid:        { color: "#2e2e40" },
+              angleLines:  { color: "#2e2e40" },
+              pointLabels: { color: "#a1a1aa", font: { size: 11 } },
+            }
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: ctx => ctx.raw === 1 ? " Found ✓" : " Not found"
+              }
+            }
+          }
+        }
+      }
+    );
+
+    /* Bar chart — score breakdown */
+    const baseScore  = Object.entries(platforms)
+      .filter(([k, v]) => v.found === true && !MANUAL_PLATFORMS.has(k)).length * 20;
+    const bonusScore = Math.max(0, traceability.score - baseScore);
+
+    const barLabels = [];
+    const barValues = [];
+    const barColors = [];
+
+    Object.entries(platforms).forEach(([k, info]) => {
+      if (info.found !== true || MANUAL_PLATFORMS.has(k)) return;
+      barLabels.push(PLATFORM_META[k]?.label || k);
+      barValues.push(20);
+      barColors.push("rgba(99,102,241,0.8)");
+    });
+
+    if (bonusScore > 0) {
+      barLabels.push("Bonus pts");
+      barValues.push(bonusScore);
+      barColors.push("rgba(251,191,36,0.85)");
+    }
+
+    if (barLabels.length === 0) {
+      barLabels.push("No platforms found");
+      barValues.push(0);
+      barColors.push("#3f3f46");
+    }
+
+    barChartInstance = new Chart(
+      document.getElementById("barChart"),
+      {
+        type: "bar",
+        data: {
+          labels: barLabels,
+          datasets: [{
+            label: "Points",
+            data:  barValues,
+            backgroundColor: barColors,
+            borderRadius: 6,
+            borderSkipped: false,
+          }]
+        },
+        options: {
+          responsive: true,
+          animation: { duration: 800 },
+          indexAxis: "y",
+          scales: {
+            x: {
+              beginAtZero: true,
+              max: 30,
+              grid:  { color: "#2e2e40" },
+              ticks: { color: "#71717a", stepSize: 10 },
+            },
+            y: {
+              grid:  { display: false },
+              ticks: { color: "#a1a1aa" },
+            }
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: { label: ctx => ` ${ctx.raw} points` }
+            }
+          }
+        }
+      }
+    );
+  }
+
+  /* ════════════════════════════
+     INTERESTS RENDERER
+  ════════════════════════════ */
+  function renderInterests(analysis) {
+    const quotesEl = document.getElementById("bio-quotes");
+    const groupsEl = document.getElementById("interest-groups");
+    quotesEl.innerHTML = "";
+    groupsEl.innerHTML = "";
+
+    const bios = (analysis.bios_collected || []).slice(0, 3);
+
+    bios.forEach(bio => {
+      if (!bio.trim()) return;
+      const div = document.createElement("div");
+      div.className = "bio-quote";
+      div.title     = escHtml(bio);
+      div.textContent = bio.length > 120 ? bio.slice(0, 120) + "…" : bio;
+      quotesEl.appendChild(div);
+    });
+
+    if (bios.length === 0) {
+      quotesEl.innerHTML = `<div class="no-interests">No public bios found on any platform.</div>`;
+      return;
+    }
+
+    if (!analysis.has_data) {
+      groupsEl.innerHTML = `
+        <div class="no-interests" style="margin-top:0.5rem">
+          A bio was found but no recognisable interest keywords were detected.
+          This is common for short bios like "Just a human 👋" or location-only bios.
+        </div>`;
+      return;
+    }
+
+    const CATEGORY_META = {
+      languages:   { label: "Programming languages", icon: "💻" },
+      topics:      { label: "Topics & domains",       icon: "🧠" },
+      tools:       { label: "Tools & frameworks",     icon: "🔧" },
+      soft_skills: { label: "Roles & soft skills",    icon: "🤝" },
+    };
+
+    for (const [key, meta] of Object.entries(CATEGORY_META)) {
+      const tags = analysis.interests[key] || [];
+      if (tags.length === 0) continue;
+      const group = document.createElement("div");
+      group.className = `interest-group ig-${key}`;
+      group.innerHTML = `
+        <div class="interest-group-label">${meta.icon} ${meta.label}</div>
+        <div class="interest-tags">
+          ${tags.map(t => `<span class="interest-tag">${escHtml(t)}</span>`).join("")}
+        </div>`;
+      groupsEl.appendChild(group);
+    }
+  }
+
+  /* ── Helpers ── */
+  function detail(emoji, text) {
+    return `<div class="platform-detail">${emoji} <span class="val">${text}</span></div>`;
+  }
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+</script>
+</body>
+</html>
